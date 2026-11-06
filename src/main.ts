@@ -416,6 +416,40 @@ function setupEventListeners(): void {
     AudioService.playTap();
     ModalManager.showHelpModal(activeThemeId);
   });
+
+  // PWA Install Prompt
+  let deferredPrompt: any = null;
+  const installBtn = document.getElementById('install-app-btn');
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (installBtn) {
+      installBtn.style.display = 'inline-block';
+      installBtn.onclick = async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          showNotification('🎉 Merge Mess installed to Home Screen!');
+        }
+        deferredPrompt = null;
+        installBtn.style.display = 'none';
+      };
+    }
+  });
+
+  window.addEventListener('appinstalled', () => {
+    if (installBtn) installBtn.style.display = 'none';
+    deferredPrompt = null;
+  });
+
+  // Register Service Worker for offline play
+  if ('serviceWorker' in navigator && !window.location.host.includes('localhost')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
 }
 
 // Start on DOMContentLoaded
