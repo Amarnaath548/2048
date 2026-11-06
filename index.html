@@ -43,8 +43,23 @@
           <span class="coin-icon">🪙</span>
           <span id="coin-count">50</span>
         </div>
+        <button id="header-settings-btn" class="header-icon-btn" title="Open Settings">⚙️</button>
       </div>
     </header>
+
+    <!-- Goal Banner: Clear Objective -->
+    <div id="target-goal-banner" class="target-goal-banner">
+      <div class="goal-left">
+        <span class="goal-crown">👑</span>
+        <div>
+          <span class="goal-title">CURRENT GOAL</span>
+          <span class="goal-desc" id="goal-target-name">Reach ✨ Golden Feast (2048)</span>
+        </div>
+      </div>
+      <div class="goal-right">
+        <span class="goal-progress-badge" id="goal-tier-badge">Tier 1/11</span>
+      </div>
+    </div>
 
     <!-- Customer Order Card -->
     <div id="order-card-container" class="order-container">
@@ -70,7 +85,7 @@
         <button id="sambar-boost-btn" class="control-btn sambar-btn" title="Upgrade one chosen tile by 1 tier (Max 2/run)">
           <div class="btn-icon">🍲</div>
           <div class="btn-info">
-            <span class="btn-name">Sambar Boost</span>
+            <span class="btn-name">Sambar</span>
             <span class="btn-badge" id="boost-badge">1/2</span>
           </div>
         </button>
@@ -95,17 +110,18 @@
           <div class="btn-icon">🎨</div>
           <div class="btn-info">
             <span class="btn-name">Skins</span>
-            <span class="btn-badge">2 Themes</span>
+            <span class="btn-badge" id="skins-badge">2 Themes</span>
           </div>
         </button>
       </div>
 
       <div class="sub-controls-row">
         <button id="new-game-btn" class="action-link-btn">🔄 New Run</button>
-        <button id="install-app-btn" class="action-link-btn" style="display: none; color: #ea580c; font-weight: 800;">📲 Install</button>
-        <button id="sound-btn" class="action-link-btn">🔊 Sound On</button>
-        <button id="donate-btn" class="action-link-btn heart-btn">☕ Support (UPI)</button>
+        <button id="stats-btn" class="action-link-btn">📊 Stats</button>
+        <button id="settings-btn" class="action-link-btn">⚙️ Settings</button>
         <button id="help-btn" class="action-link-btn">📖 How to Play</button>
+        <button id="install-app-btn" class="action-link-btn" style="display: none; color: #ea580c; font-weight: 800;">📲 Install</button>
+        <button id="donate-btn" class="action-link-btn heart-btn">☕ Support</button>
       </div>
     </footer>
   </div>

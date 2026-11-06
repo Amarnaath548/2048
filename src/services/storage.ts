@@ -1,5 +1,14 @@
 import { Grid, Order } from '../core/types.ts';
 
+export interface GameStats {
+  gamesPlayed: number;
+  totalMerges: number;
+  ordersCompleted: number;
+  highestDishReached: string;
+  highestDishTier: number;
+  sambarBoostsUsed: number;
+}
+
 export interface SaveData {
   bestScore: number;
   coins: number;
@@ -14,9 +23,20 @@ export interface SaveData {
   savedScore: number;
   savedBoosts: number;
   savedOrder: Order | null;
+  hasSeenTutorial: boolean;
+  stats: GameStats;
 }
 
 const STORAGE_KEY = 'MERGE_MESS_SAVE_V1';
+
+const DEFAULT_STATS: GameStats = {
+  gamesPlayed: 0,
+  totalMerges: 0,
+  ordersCompleted: 0,
+  highestDishReached: 'Rice Grain',
+  highestDishTier: 1,
+  sambarBoostsUsed: 0
+};
 
 const DEFAULT_SAVE: SaveData = {
   bestScore: 0,
@@ -31,7 +51,9 @@ const DEFAULT_SAVE: SaveData = {
   savedGrid: null,
   savedScore: 0,
   savedBoosts: 1,
-  savedOrder: null
+  savedOrder: null,
+  hasSeenTutorial: false,
+  stats: DEFAULT_STATS
 };
 
 export class StorageService {
@@ -42,7 +64,12 @@ export class StorageService {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        this.cachedData = { ...DEFAULT_SAVE, ...JSON.parse(raw) };
+        const parsed = JSON.parse(raw);
+        this.cachedData = {
+          ...DEFAULT_SAVE,
+          ...parsed,
+          stats: { ...DEFAULT_STATS, ...(parsed.stats || {}) }
+        };
         return this.cachedData!;
       }
     } catch (e) {
@@ -62,6 +89,13 @@ export class StorageService {
       console.warn('Could not write to localStorage', e);
     }
     return updated;
+  }
+
+  public static updateStats(updater: (stats: GameStats) => void): void {
+    const current = this.load();
+    const stats = { ...current.stats };
+    updater(stats);
+    this.save({ stats });
   }
 
   public static addCoins(amount: number): number {

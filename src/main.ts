@@ -39,7 +39,9 @@ const themePillEl = document.getElementById('theme-pill') as HTMLElement;
 const boostBadgeEl = document.getElementById('boost-badge') as HTMLElement;
 const dailyBadgeEl = document.getElementById('daily-badge') as HTMLElement;
 const boostIndicatorEl = document.getElementById('boost-indicator') as HTMLElement;
-const soundBtnEl = document.getElementById('sound-btn') as HTMLElement;
+const goalTargetNameEl = document.getElementById('goal-target-name') as HTMLElement;
+const goalTierBadgeEl = document.getElementById('goal-tier-badge') as HTMLElement;
+const soundBtnEl = document.getElementById('sound-btn');
 
 let orderUI: OrderUI;
 
@@ -119,6 +121,17 @@ function initGame(): void {
     } else {
       startNewGame();
     }
+
+    updateGoalBanner();
+
+    // First 30 Seconds Onboarding: auto-show tutorial if new player
+    if (!save.hasSeenTutorial) {
+      setTimeout(() => {
+        ModalManager.showTutorialModal(() => {
+          showNotification('Ready to cook! Swipe to merge dishes 🥘');
+        });
+      }, 350);
+    }
   });
 
   setupEventListeners();
@@ -152,6 +165,7 @@ function resumeSavedGame(save: SaveData): void {
 
   updateStatsUI();
   updateBoostBadge();
+  updateGoalBanner();
 
   gameScene?.startNewRun({
     themeId: activeThemeId,
@@ -171,6 +185,11 @@ function startNewGame(isDaily = false): void {
   previousGridSnapshot = null;
   boostIndicatorEl.classList.add('hidden');
 
+  // Track games played in career stats
+  StorageService.updateStats(s => {
+    s.gamesPlayed++;
+  });
+
   if (!isDailyMode) {
     resetTileIdCounter(1);
   }
@@ -181,6 +200,7 @@ function startNewGame(isDaily = false): void {
 
   updateStatsUI();
   updateBoostBadge();
+  updateGoalBanner();
 
   if (isDailyMode) {
     const todayStr = getTodayDateString();
@@ -230,10 +250,25 @@ function createCallbacks() {
       saveActiveGameState();
     },
     onMerges: (merges: { tier: number }[]) => {
+      // Update career stats
+      StorageService.updateStats(s => {
+        s.totalMerges += merges.length;
+        const theme = getTheme(activeThemeId);
+        for (const m of merges) {
+          if (m.tier > s.highestDishTier) {
+            s.highestDishTier = m.tier;
+            const tInfo = theme.tiers.find(t => t.tier === m.tier);
+            if (tInfo) s.highestDishReached = tInfo.name;
+          }
+        }
+      });
+      updateGoalBanner();
+
       const orderResult = orderManager.onMerges(merges);
       if (orderResult && orderResult.completed) {
         AudioService.playOrderComplete();
         StorageService.addCoins(orderResult.coinsGained);
+        StorageService.updateStats(s => { s.ordersCompleted++; });
         scoreManager.addScore(orderResult.scoreBonus);
         updateStatsUI();
 
@@ -331,8 +366,10 @@ function createCallbacks() {
       // Apply boost through SambarBoostManager to decrement remaining count properly!
       const upgraded = boostManager.applyBoost(grid, r, c, theme.totalTiers);
       if (upgraded) {
+        StorageService.updateStats(s => { s.sambarBoostsUsed++; });
         boostIndicatorEl.classList.add('hidden');
         updateBoostBadge();
+        updateGoalBanner();
         saveActiveGameState();
         const newTierInfo = theme.tiers.find(t => t.tier === upgraded.tier);
         showNotification(`🍲 Upgraded to ${newTierInfo?.symbol} ${newTierInfo?.name}!`);
@@ -401,6 +438,36 @@ function updateBoostBadge(): void {
 function updateDailyBadge(): void {
   const save = StorageService.load();
   dailyBadgeEl.textContent = `🔥 ${save.dailyStreak}d`;
+}
+
+function updateGoalBanner(): void {
+  if (!goalTargetNameEl || !goalTierBadgeEl) return;
+  const theme = getTheme(activeThemeId);
+  const targetDish = theme.tiers[theme.totalTiers - 1];
+
+  let currentHighest = 1;
+  if (gameScene) {
+    const grid = gameScene.getGrid();
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        if (grid[r][c] && grid[r][c]!.tier > currentHighest) {
+          currentHighest = grid[r][c]!.tier;
+        }
+      }
+    }
+  }
+
+  if (currentHighest >= theme.totalTiers) {
+    goalTargetNameEl.textContent = `🎉 Mastered ${targetDish.symbol} ${targetDish.name}! Keep merging!`;
+    goalTierBadgeEl.textContent = `Max Tier ${theme.totalTiers}/${theme.totalTiers}`;
+    goalTierBadgeEl.style.background = '#fef08a';
+    goalTierBadgeEl.style.color = '#854d0e';
+  } else {
+    goalTargetNameEl.textContent = `Reach ✨ ${targetDish.symbol} ${targetDish.name} (${targetDish.value})`;
+    goalTierBadgeEl.textContent = `Tier ${currentHighest}/${theme.totalTiers}`;
+    goalTierBadgeEl.style.background = '#ffedd5';
+    goalTierBadgeEl.style.color = '#c2410c';
+  }
 }
 
 function showNotification(msg: string): void {
@@ -489,6 +556,7 @@ function setupEventListeners(): void {
       scoreManager.reset(previousScoreSnapshot);
       previousGridSnapshot = null;
       updateStatsUI();
+      updateGoalBanner();
       saveActiveGameState();
       showNotification('↩️ Move undone! (-15 🪙)');
     } else {
@@ -497,6 +565,7 @@ function setupEventListeners(): void {
         scoreManager.reset(previousScoreSnapshot);
         previousGridSnapshot = null;
         updateStatsUI();
+        updateGoalBanner();
         saveActiveGameState();
         showNotification('↩️ Move undone via Rewarded Ad!');
       });
@@ -520,6 +589,7 @@ function setupEventListeners(): void {
     ModalManager.showThemesModal(activeThemeId, (newThemeId) => {
       activeThemeId = newThemeId;
       updateThemePill();
+      updateGoalBanner();
       gameScene?.setTheme(activeThemeId);
       tryGenerateNewOrder(true);
       saveActiveGameState();
@@ -533,8 +603,32 @@ function setupEventListeners(): void {
     startNewGame(false);
   });
 
-  // Sound Toggle Button
-  soundBtnEl.addEventListener('click', () => {
+  // Settings Modals (Header and Footer)
+  const openSettings = () => {
+    AudioService.playTap();
+    ModalManager.showSettingsModal(
+      (soundEnabled) => {
+        showNotification(soundEnabled ? '🔊 Sound enabled' : '🔇 Sound muted');
+      },
+      () => {
+        ModalManager.showTutorialModal(() => {
+          showNotification('Tutorial complete! Enjoy the game 🍱');
+        });
+      }
+    );
+  };
+
+  document.getElementById('header-settings-btn')?.addEventListener('click', openSettings);
+  document.getElementById('settings-btn')?.addEventListener('click', openSettings);
+
+  // Stats Modal
+  document.getElementById('stats-btn')?.addEventListener('click', () => {
+    AudioService.playTap();
+    ModalManager.showStatsModal();
+  });
+
+  // Sound Toggle Button (if present)
+  soundBtnEl?.addEventListener('click', () => {
     const isNowMuted = !AudioService.toggleMute();
     soundBtnEl.textContent = isNowMuted ? '🔇 Sound Off' : '🔊 Sound On';
     AudioService.playTap();
