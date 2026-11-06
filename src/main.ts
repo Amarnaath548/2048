@@ -11,6 +11,7 @@ import { AdService } from './services/ads.ts';
 import { getTheme } from './themes/index.ts';
 import { getTodayDateString, createDailyBoard, calculateNewStreak } from './core/daily.ts';
 import { cloneGrid, canMove } from './core/board.ts';
+import { resetTileIdCounter } from './core/spawn.ts';
 import { Grid } from './core/types.ts';
 import { SeededRNG } from './core/rng.ts';
 
@@ -136,6 +137,19 @@ function resumeSavedGame(save: SaveData): void {
     orderManager.setActiveOrder(save.savedOrder);
   }
 
+  // Prevent Tile ID clashes: set the counter above the highest restored tile ID!
+  let maxId = 0;
+  if (save.savedGrid) {
+    for (const row of save.savedGrid) {
+      for (const cell of row) {
+        if (cell && cell.id > maxId) {
+          maxId = cell.id;
+        }
+      }
+    }
+  }
+  resetTileIdCounter(maxId + 1);
+
   updateStatsUI();
   updateBoostBadge();
 
@@ -156,6 +170,10 @@ function startNewGame(isDaily = false): void {
   boostManager.setRemaining(1);
   previousGridSnapshot = null;
   boostIndicatorEl.classList.add('hidden');
+
+  if (!isDailyMode) {
+    resetTileIdCounter(1);
+  }
 
   if (gameScene) {
     gameScene.setSambarMode(false);
@@ -198,6 +216,10 @@ function createCallbacks() {
       // Snapshot the exact board and score BEFORE executeMove mutates them
       previousGridSnapshot = gridBeforeMove;
       previousScoreSnapshot = scoreManager.getScore();
+    },
+    onMoveSuccess: () => {
+      // Save board state after EVERY move that changes the board (even non-merging slides!)
+      saveActiveGameState();
     },
     onScoreGained: (gained: number) => {
       const isNewBest = scoreManager.addScore(gained);

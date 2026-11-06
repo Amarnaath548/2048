@@ -6,6 +6,7 @@ import { OrderManager } from '../src/core/orders.ts';
 import { SambarBoostManager } from '../src/core/boosts.ts';
 import { SeededRNG } from '../src/core/rng.ts';
 import { createDailyBoard } from '../src/core/daily.ts';
+import { spawnRandomTile, resetTileIdCounter } from '../src/core/spawn.ts';
 import { Grid, Tile } from '../src/core/types.ts';
 
 describe('Merge Mess Core Mechanics', () => {
@@ -250,6 +251,17 @@ describe('Merge Mess Core Mechanics', () => {
       expect(o1?.targetTier).toBe(o2?.targetTier);
       expect(o1?.targetCount).toBe(o2?.targetCount);
       expect(o1?.customerName).toBe(o2?.customerName);
+    });
+
+    it('prevents ID clashes when restoring by bumping tileId counter', () => {
+      const grid = createEmptyGrid(4);
+      // Simulate restored tiles with IDs up to 45
+      grid[0][0] = { id: 45, tier: 2, value: 4, r: 0, c: 0 };
+      resetTileIdCounter(46);
+
+      const newTile = spawnRandomTile(grid);
+      expect(newTile).not.toBeNull();
+      expect(newTile!.id).toBeGreaterThanOrEqual(46);
     });
   });
 

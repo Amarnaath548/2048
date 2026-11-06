@@ -8,6 +8,7 @@ import { SeededRNG } from '../core/rng.ts';
 
 export interface GameSceneCallbacks {
   onBeforeMove: (grid: Grid) => void;
+  onMoveSuccess: () => void;
   onScoreGained: (score: number) => void;
   onMerges: (merges: { tier: number }[]) => void;
   onTripleMerge: () => void;
@@ -349,6 +350,9 @@ export class GameScene extends Phaser.Scene {
 
     // Inform main to save previous grid snapshot for reliable Undo
     this.callbacks.onBeforeMove(preMoveGrid);
+
+    // Any move that changes the board triggers save & callbacks
+    this.callbacks.onMoveSuccess();
 
     AudioService.playSwipe();
     this.isAnimating = true;
