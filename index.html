@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#d97706">
+  <meta name="description" content="Merge Mess - A delicious South Indian food & Tamil letters 2048 merge puzzle game.">
+  <title>Merge Mess - South Indian Merge Puzzle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Top Header -->
+    <header class="game-header">
+      <div class="brand">
+        <h1 class="logo">Merge Mess <span class="logo-sub">விருந்து</span></h1>
+        <div class="theme-pill" id="theme-pill">🍲 South Indian Food</div>
+      </div>
+      <div class="stats-group">
+        <div class="stat-card">
+          <span class="stat-label">SCORE</span>
+          <span class="stat-value" id="current-score">0</span>
+        </div>
+        <div class="stat-card highlight">
+          <span class="stat-label">BEST</span>
+          <span class="stat-value" id="best-score">0</span>
+        </div>
+        <div class="coin-badge" id="coin-badge" title="Coins earned from orders & challenges">
+          <span class="coin-icon">🪙</span>
+          <span id="coin-count">50</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Customer Order Card -->
+    <div id="order-card-container" class="order-container">
+      <!-- Injected by OrderUI -->
+    </div>
+
+    <!-- Sambar Boost Alert Banner when active -->
+    <div id="boost-indicator" class="boost-indicator hidden">
+      🍲 <strong>Sambar Boost Active!</strong> Tap any tile on the board to upgrade it by 1 tier!
+      <button id="cancel-boost-btn" class="mini-btn">Cancel</button>
+    </div>
+
+    <!-- Main Game Board Container -->
+    <main class="board-wrapper">
+      <div id="game-container" class="game-container">
+        <!-- Phaser Canvas mounts here -->
+      </div>
+    </main>
+
+    <!-- Bottom Controls & Power-ups -->
+    <footer class="game-controls">
+      <div class="powerups-row">
+        <button id="sambar-boost-btn" class="control-btn sambar-btn" title="Upgrade one chosen tile by 1 tier (Max 2/run)">
+          <div class="btn-icon">🍲</div>
+          <div class="btn-info">
+            <span class="btn-name">Sambar Boost</span>
+            <span class="btn-badge" id="boost-badge">1/2</span>
+          </div>
+        </button>
+
+        <button id="undo-btn" class="control-btn undo-btn" title="Undo previous move (15 coins or watch ad)">
+          <div class="btn-icon">↩️</div>
+          <div class="btn-info">
+            <span class="btn-name">Undo</span>
+            <span class="btn-badge">15 🪙</span>
+          </div>
+        </button>
+
+        <button id="daily-btn" class="control-btn daily-btn" title="Play Today's Daily Challenge">
+          <div class="btn-icon">📅</div>
+          <div class="btn-info">
+            <span class="btn-name">Daily</span>
+            <span class="btn-badge" id="daily-badge">🔥 0d</span>
+          </div>
+        </button>
+
+        <button id="themes-btn" class="control-btn theme-btn" title="Switch between Food and Tamil Alphabet">
+          <div class="btn-icon">🎨</div>
+          <div class="btn-info">
+            <span class="btn-name">Skins</span>
+            <span class="btn-badge">2 Themes</span>
+          </div>
+        </button>
+      </div>
+
+      <div class="sub-controls-row">
+        <button id="new-game-btn" class="action-link-btn">🔄 New Run</button>
+        <button id="sound-btn" class="action-link-btn">🔊 Sound On</button>
+        <button id="donate-btn" class="action-link-btn heart-btn">☕ Support (UPI)</button>
+        <button id="help-btn" class="action-link-btn">📖 How to Play</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Dialog / Modals will be rendered here -->
+  <div id="modal-container"></div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
+
