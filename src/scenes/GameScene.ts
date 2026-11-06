@@ -241,6 +241,14 @@ export class GameScene extends Phaser.Scene {
     return { x, y };
   }
 
+  private getCellCenterCoords(r: number, c: number): { x: number; y: number } {
+    const coords = this.getCellCoords(r, c);
+    return {
+      x: coords.x + this.cellSize / 2,
+      y: coords.y + this.cellSize / 2
+    };
+  }
+
   private setupInput(): void {
     // Instant swipe detection during pointer movement
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -392,15 +400,15 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Phase 1: Slide all moving tiles to their target cell coordinates
+    // Phase 1: Slide all moving tiles to their target cell center
     for (const mv of result.moves) {
       const container = this.tileContainers.get(mv.id);
       if (container) {
-        const destCoords = this.getCellCoords(mv.toR, mv.toC);
+        const dest = this.getCellCenterCoords(mv.toR, mv.toC);
         this.tweens.add({
           targets: container,
-          x: destCoords.x,
-          y: destCoords.y,
+          x: dest.x,
+          y: dest.y,
           duration: SLIDE_DURATION,
           ease: 'Cubic.easeOut'
         });
@@ -432,31 +440,35 @@ export class GameScene extends Phaser.Scene {
         const mergedContainer = this.createTileGameObject(tileData, mg.targetR, mg.targetC);
         this.tileContainers.set(mg.newTileId, mergedContainer);
 
-        // Juice: Pop scale from 0.85 -> 1.2 -> 1.0
-        mergedContainer.setScale(0.85);
+        // Juicy pop: 1.0 -> 1.15 -> 1.0, guaranteed full square size at end!
+        mergedContainer.setScale(1.0);
         this.tweens.add({
           targets: mergedContainer,
-          scale: 1.18,
+          scaleX: 1.15,
+          scaleY: 1.15,
           duration: 75,
           yoyo: true,
-          ease: 'Back.easeOut'
+          ease: 'Back.easeOut',
+          onComplete: () => {
+            mergedContainer.setScale(1.0);
+          }
         });
 
         // Floating score popup (+value)
         this.spawnFloatingScore(
-          mergedContainer.x + this.cellSize / 2,
-          mergedContainer.y,
+          mergedContainer.x,
+          mergedContainer.y - this.cellSize / 2,
           mg.value
         );
 
         // Particle burst
         this.spawnMergeParticles(
-          mergedContainer.x + this.cellSize / 2,
-          mergedContainer.y + this.cellSize / 2
+          mergedContainer.x,
+          mergedContainer.y
         );
       }
 
-      // 3. Spawn new tile with smooth scale-up
+      // 3. Spawn new tile with smooth scale-up, settling at 1.0 full square
       if (result.spawnedTile) {
         const spawnedContainer = this.createTileGameObject(
           result.spawnedTile,
@@ -468,9 +480,13 @@ export class GameScene extends Phaser.Scene {
         spawnedContainer.setScale(0);
         this.tweens.add({
           targets: spawnedContainer,
-          scale: 1,
+          scaleX: 1.0,
+          scaleY: 1.0,
           duration: 110,
-          ease: 'Back.easeOut'
+          ease: 'Back.easeOut',
+          onComplete: () => {
+            spawnedContainer.setScale(1.0);
+          }
         });
       }
 
@@ -502,35 +518,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createTileGameObject(tile: Tile, r: number, c: number): Phaser.GameObjects.Container {
-    const { x, y } = this.getCellCoords(r, c);
+    const { x, y } = this.getCellCenterCoords(r, c);
+    const half = this.cellSize / 2;
     const theme = getTheme(this.themeId);
     const tierDef = theme.tiers.find(t => t.tier === tile.tier) || theme.tiers[0];
 
     const container = this.add.container(x, y);
 
-    // Drop shadow
+    // Drop shadow (centered)
     const shadow = this.add.graphics();
-    shadow.fillStyle(0x000000, 0.15);
-    shadow.fillRoundedRect(0, 3, this.cellSize, this.cellSize, 10);
+    shadow.fillStyle(0x000000, 0.14);
+    shadow.fillRoundedRect(-half, -half + 2, this.cellSize, this.cellSize, 10);
     container.add(shadow);
 
-    // Tile body
+    // Tile body (centered, full square cell coverage)
     const bg = this.add.graphics();
     const color = Phaser.Display.Color.HexStringToColor(tierDef.bgColor).color;
     bg.fillStyle(color, 1);
-    bg.fillRoundedRect(0, 0, this.cellSize, this.cellSize, 10);
+    bg.fillRoundedRect(-half, -half, this.cellSize, this.cellSize, 10);
 
-    // Subtle 3D bevel / bottom shading
+    // Subtle 3D bottom bevel
     bg.fillStyle(0x000000, 0.09);
-    bg.fillRoundedRect(0, this.cellSize - 5, this.cellSize, 5, { tl: 0, tr: 0, bl: 10, br: 10 });
-
+    bg.fillRoundedRect(-half, half - 5, this.cellSize, 5, { tl: 0, tr: 0, bl: 10, br: 10 });
     container.add(bg);
 
     // Center Symbol / Emoji
     const isTamilTheme = this.themeId === 'tamil-letters';
     const symbolText = this.add.text(
-      this.cellSize / 2,
-      isTamilTheme ? this.cellSize / 2 - 5 : this.cellSize / 2 - 7,
+      0,
+      isTamilTheme ? -5 : -7,
       tierDef.symbol,
       {
         fontFamily: isTamilTheme ? 'Noto Sans Tamil' : 'Fredoka, sans-serif',
@@ -548,8 +564,8 @@ export class GameScene extends Phaser.Scene {
       : tierDef.name;
 
     const labelText = this.add.text(
-      this.cellSize / 2,
-      this.cellSize - 13,
+      0,
+      half - 13,
       labelStr,
       {
         fontFamily: isTamilTheme ? 'Noto Sans Tamil, sans-serif' : 'Plus Jakarta Sans, sans-serif',
@@ -563,8 +579,8 @@ export class GameScene extends Phaser.Scene {
 
     // Small numerical badge
     const valText = this.add.text(
-      this.cellSize - 7,
-      7,
+      half - 7,
+      -half + 7,
       String(tile.value),
       {
         fontFamily: 'Fredoka, sans-serif',
@@ -575,6 +591,7 @@ export class GameScene extends Phaser.Scene {
     ).setOrigin(1, 0);
     container.add(valText);
 
+    container.setScale(1.0);
     return container;
   }
 
