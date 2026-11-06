@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ea580c"/>
+      <stop offset="50%" stop-color="#c2410c"/>
+      <stop offset="100%" stop-color="#7c2d12"/>
+    </linearGradient>
+    <linearGradient id="thaliGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef3c7"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Background with rounded corners -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+
+  <!-- Golden Thali Plate with shadow -->
+  <circle cx="256" cy="256" r="190" fill="url(#thaliGrad)" filter="url(#shadow)"/>
+  <circle cx="256" cy="256" r="172" fill="#fffbeb" stroke="#d97706" stroke-width="6"/>
+
+  <!-- Food & Tamil glyph composition -->
+  <!-- Steaming Idli -->
+  <ellipse cx="200" cy="220" rx="65" ry="48" fill="#ffffff" stroke="#f1f5f9" stroke-width="4"/>
+  <circle cx="180" cy="210" r="4" fill="#cbd5e1" opacity="0.6"/>
+  <circle cx="215" cy="225" r="5" fill="#cbd5e1" opacity="0.6"/>
+
+  <!-- Crispy Golden Dosa Roll -->
+  <path d="M 170 330 C 220 280, 310 260, 360 300 C 340 330, 260 360, 180 345 Z" fill="#d97706" stroke="#b45309" stroke-width="4"/>
+
+  <!-- Tamil letter அ / Golden emblem badge -->
+  <circle cx="330" cy="190" r="54" fill="#7e22ce" stroke="#ffffff" stroke-width="5" filter="url(#shadow)"/>
+  <text x="330" y="208" font-family="'Noto Sans Tamil', 'Arial Unicode MS', sans-serif" font-size="52" font-weight="bold" fill="#ffffff" text-anchor="middle">அ</text>
+
+  <!-- Steam curves -->
+  <path d="M 190 150 Q 200 125 190 100" stroke="#f59e0b" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.75"/>
+  <path d="M 220 155 Q 230 130 220 105" stroke="#f59e0b" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.75"/>
+
+  <!-- Banner label: MERGE MESS -->
+  <rect x="96" y="400" width="320" height="54" rx="27" fill="#ffffff" filter="url(#shadow)"/>
+  <text x="256" y="436" font-family="system-ui, sans-serif" font-size="24" font-weight="900" fill="#c2410c" text-anchor="middle" letter-spacing="2">MERGE MESS</text>
+</svg>
