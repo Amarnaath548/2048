@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene.ts';
-import { StorageService } from './services/storage.ts';
+import { StorageService, SaveData } from './services/storage.ts';
 import { AudioService } from './services/audio.ts';
 import { OrderManager } from './core/orders.ts';
 import { SambarBoostManager } from './core/boosts.ts';
@@ -10,8 +10,9 @@ import { ModalManager } from './ui/modals.ts';
 import { AdService } from './services/ads.ts';
 import { getTheme } from './themes/index.ts';
 import { getTodayDateString, createDailyBoard, calculateNewStreak } from './core/daily.ts';
-import { cloneGrid } from './core/board.ts';
+import { cloneGrid, canMove } from './core/board.ts';
 import { Grid } from './core/types.ts';
+import { SeededRNG } from './core/rng.ts';
 
 // State & Managers
 let game: Phaser.Game | null = null;
@@ -23,6 +24,8 @@ const scoreManager = new ScoreManager(0);
 
 let activeThemeId = 'classic-food';
 let isDailyMode = false;
+let dailyRng: SeededRNG | undefined = undefined;
+
 let previousGridSnapshot: Grid | null = null;
 let previousScoreSnapshot = 0;
 let hasReachedWinThisRun = false;
@@ -54,19 +57,26 @@ function initGame(): void {
   updateBoostBadge();
   updateDailyBadge();
 
-  // Initialize Order UI
+  // Initialize Order UI with working Skip and Double Reward ad callbacks
   orderUI = new OrderUI(
     'order-card-container',
     () => {
-      // Skip order
+      // Skip order (free)
       orderManager.skipOrder();
       orderUI.render(null, activeThemeId);
-      setTimeout(tryGenerateNewOrder, 5000);
+      saveActiveGameState();
+      setTimeout(() => tryGenerateNewOrder(false), 5000);
     },
     () => {
-      // 2x Reward ad
+      // 2x Reward ad: Player watches ad, doubles active order reward!
       AdService.showRewardedAd('double_order', () => {
-        // Handled in order completion
+        const doubled = orderManager.doubleActiveOrderReward();
+        if (doubled) {
+          AudioService.playBoost();
+          orderUI.render(orderManager.getActiveOrder(), activeThemeId);
+          showNotification('🔥 Order reward doubled! Complete it for 2x coins & score!');
+          saveActiveGameState();
+        }
       });
     }
   );
@@ -100,10 +110,43 @@ function initGame(): void {
   // Once game scene boots
   game.events.once('ready', () => {
     gameScene = game!.scene.getScene('GameScene') as GameScene;
-    startNewGame();
+
+    // Check if there is an existing saved game to restore
+    const save = StorageService.load();
+    if (save.savedGrid && canMove(save.savedGrid)) {
+      resumeSavedGame(save);
+    } else {
+      startNewGame();
+    }
   });
 
   setupEventListeners();
+}
+
+function resumeSavedGame(save: SaveData): void {
+  isDailyMode = false;
+  dailyRng = undefined;
+  hasReachedWinThisRun = false;
+  previousGridSnapshot = null;
+  boostIndicatorEl.classList.add('hidden');
+
+  scoreManager.reset(save.savedScore || 0);
+  boostManager.setRemaining(save.savedBoosts !== undefined ? save.savedBoosts : 1);
+  if (save.savedOrder) {
+    orderManager.setActiveOrder(save.savedOrder);
+  }
+
+  updateStatsUI();
+  updateBoostBadge();
+
+  gameScene?.startNewRun({
+    themeId: activeThemeId,
+    callbacks: createCallbacks(),
+    initialGrid: save.savedGrid!
+  });
+
+  orderUI.render(orderManager.getActiveOrder(), activeThemeId);
+  showNotification('💾 Previous game restored!');
 }
 
 function startNewGame(isDaily = false): void {
@@ -121,26 +164,48 @@ function startNewGame(isDaily = false): void {
   updateStatsUI();
   updateBoostBadge();
 
-  const theme = getTheme(activeThemeId);
-  const themeNames: Record<number, string> = {};
-  theme.tiers.forEach(t => {
-    themeNames[t.tier] = t.name;
-  });
+  if (isDailyMode) {
+    const todayStr = getTodayDateString();
+    const { grid, rng } = createDailyBoard(todayStr);
+    dailyRng = rng;
+    gameScene?.startNewRun({
+      themeId: activeThemeId,
+      callbacks: createCallbacks(),
+      initialGrid: grid,
+      rng
+    });
+  } else {
+    dailyRng = undefined;
+    StorageService.clearSavedBoard();
+    gameScene?.startNewRun({
+      themeId: activeThemeId,
+      callbacks: createCallbacks()
+    });
+  }
 
-  // Setup callbacks
-  const callbacks = {
+  // Generate starting customer order
+  orderManager.skipOrder();
+  tryGenerateNewOrder(true);
+
+  if (!isDailyMode) {
+    saveActiveGameState();
+  }
+}
+
+function createCallbacks() {
+  return {
+    onBeforeMove: (gridBeforeMove: Grid) => {
+      // Snapshot the exact board and score BEFORE executeMove mutates them
+      previousGridSnapshot = gridBeforeMove;
+      previousScoreSnapshot = scoreManager.getScore();
+    },
     onScoreGained: (gained: number) => {
-      if (gameScene) {
-        // Snapshot grid before moving
-        previousGridSnapshot = cloneGrid(gameScene.getGrid());
-        previousScoreSnapshot = scoreManager.getScore();
-      }
-
       const isNewBest = scoreManager.addScore(gained);
       if (isNewBest) {
         StorageService.save({ bestScore: scoreManager.getBestScore() });
       }
       updateStatsUI();
+      saveActiveGameState();
     },
     onMerges: (merges: { tier: number }[]) => {
       const orderResult = orderManager.onMerges(merges);
@@ -150,14 +215,15 @@ function startNewGame(isDaily = false): void {
         scoreManager.addScore(orderResult.scoreBonus);
         updateStatsUI();
 
-        // Show completed state
+        showNotification(`🎉 Order Complete! +${orderResult.coinsGained} 🪙 +${orderResult.scoreBonus} ⭐`);
         orderUI.render(null, activeThemeId);
-        setTimeout(tryGenerateNewOrder, 6000);
+        saveActiveGameState();
+        setTimeout(() => tryGenerateNewOrder(false), 5000);
       } else {
         orderUI.render(orderManager.getActiveOrder(), activeThemeId);
+        saveActiveGameState();
       }
 
-      // Check if order needs generation if none active
       tryGenerateNewOrder();
     },
     onTripleMerge: () => {
@@ -165,6 +231,7 @@ function startNewGame(isDaily = false): void {
       if (boostManager.addBoost()) {
         AudioService.playBoost();
         updateBoostBadge();
+        saveActiveGameState();
         showNotification('✨ 3-Merge Combo! +1 Sambar Boost earned!');
       }
     },
@@ -185,13 +252,26 @@ function startNewGame(isDaily = false): void {
         const todayStr = getTodayDateString();
         const save = StorageService.load();
         const streakResult = calculateNewStreak(save.lastDailyDate, save.dailyStreak, todayStr);
-        StorageService.save({
+        const updates: Partial<SaveData> = {
           dailyStreak: streakResult.streak,
           lastDailyDate: todayStr
-        });
-        StorageService.addCoins(50); // Daily completion reward
+        };
+
+        // Pay 50 coins ONLY ONCE per date! Prevents coin farming exploit.
+        if (save.lastDailyRewardDate !== todayStr) {
+          updates.lastDailyRewardDate = todayStr;
+          StorageService.addCoins(50);
+          showNotification('🌟 +50 Daily Bonus Coins earned!');
+        } else {
+          showNotification('Daily run complete! (Today\'s 50🪙 already claimed)');
+        }
+
+        StorageService.save(updates);
         updateDailyBadge();
         updateStatsUI();
+      } else {
+        // Clear saved board on normal game over
+        StorageService.clearSavedBoard();
       }
 
       ModalManager.showGameOverModal(
@@ -203,36 +283,57 @@ function startNewGame(isDaily = false): void {
         () => {
           // Continue with Ad: revive board
           gameScene?.continueRevive();
+          saveActiveGameState();
         },
         () => startNewGame(isDailyMode)
       );
     },
-    onBoostUsed: () => {
-      boostIndicatorEl.classList.add('hidden');
-      updateBoostBadge();
-      showNotification('🍲 Sambar upgraded your dish!');
+    onBoostTileTapped: (r: number, c: number): boolean => {
+      if (!gameScene) return false;
+      const grid = gameScene.getGrid();
+      const tile = grid[r][c];
+      if (!tile) return false;
+
+      const theme = getTheme(activeThemeId);
+      // Check maximum tier for theme (11 for food, 12 for Tamil)
+      if (tile.tier >= theme.totalTiers) {
+        showNotification(`✨ This dish is already at maximum tier (${theme.tiers[theme.totalTiers - 1].name})!`);
+        return false;
+      }
+
+      if (boostManager.getRemaining() <= 0) {
+        showNotification('No Sambar Boosts remaining!');
+        return false;
+      }
+
+      // Apply boost through SambarBoostManager to decrement remaining count properly!
+      const upgraded = boostManager.applyBoost(grid, r, c, theme.totalTiers);
+      if (upgraded) {
+        boostIndicatorEl.classList.add('hidden');
+        updateBoostBadge();
+        saveActiveGameState();
+        const newTierInfo = theme.tiers.find(t => t.tier === upgraded.tier);
+        showNotification(`🍲 Upgraded to ${newTierInfo?.symbol} ${newTierInfo?.name}!`);
+        return true;
+      }
+      return false;
     }
   };
+}
 
-  if (isDailyMode) {
-    const todayStr = getTodayDateString();
-    const { grid, rng } = createDailyBoard(todayStr);
-    gameScene?.startNewRun({
-      themeId: activeThemeId,
-      callbacks,
-      initialGrid: grid,
-      rng
-    });
-  } else {
-    gameScene?.startNewRun({
-      themeId: activeThemeId,
-      callbacks
-    });
+function saveActiveGameState(): void {
+  if (isDailyMode || !gameScene) return;
+  const grid = gameScene.getGrid();
+  if (!canMove(grid)) {
+    StorageService.clearSavedBoard();
+    return;
   }
-
-  // Generate starting customer order
-  orderManager.skipOrder();
-  tryGenerateNewOrder(true);
+  StorageService.save({
+    savedGrid: cloneGrid(grid),
+    savedScore: scoreManager.getScore(),
+    savedBoosts: boostManager.getRemaining(),
+    savedOrder: orderManager.getActiveOrder()
+  });
 }
 
 function tryGenerateNewOrder(force = false): void {
@@ -253,7 +354,8 @@ function tryGenerateNewOrder(force = false): void {
     themeNames[t.tier] = t.name;
   });
 
-  const order = orderManager.generateOrder(highestTier, themeNames, force);
+  // If in daily mode, pass dailyRng so all players worldwide get identical customer orders!
+  const order = orderManager.generateOrder(highestTier, themeNames, force, Date.now(), dailyRng);
   orderUI.render(order, activeThemeId);
 }
 
@@ -300,7 +402,11 @@ function showNotification(msg: string): void {
   setTimeout(() => {
     banner.style.opacity = '0';
     banner.style.transition = 'opacity 0.3s';
-    setTimeout(() => document.body.removeChild(banner), 300);
+    setTimeout(() => {
+      if (banner.parentNode) {
+        banner.parentNode.removeChild(banner);
+      }
+    }, 300);
   }, 2500);
 }
 
@@ -318,19 +424,23 @@ function setupEventListeners(): void {
         gameScene?.setSambarMode(true);
       }
     } else {
-      // Offer to buy boost or watch ad
+      // Out of boosts: allow buying for 50 coins or watching rewarded ad (capped at 2)
       const save = StorageService.load();
       if (save.coins >= 50) {
-        if (confirm('Get 1 Sambar Boost for 50 🪙?')) {
+        if (confirm('Get 1 Sambar Boost for 50 🪙? (Limit 2 per run)')) {
           StorageService.spendCoins(50);
           boostManager.addBoost();
           updateBoostBadge();
           updateStatsUI();
+          saveActiveGameState();
+          showNotification('🍲 +1 Sambar Boost added!');
         }
       } else {
         AdService.showRewardedAd('boost', () => {
           boostManager.addBoost();
           updateBoostBadge();
+          updateStatsUI();
+          saveActiveGameState();
           showNotification('🎉 Sambar Boost gained from rewarded ad!');
         });
       }
@@ -353,17 +463,19 @@ function setupEventListeners(): void {
     const save = StorageService.load();
     if (save.coins >= 15) {
       StorageService.spendCoins(15);
-      gameScene?.resetBoard(previousGridSnapshot);
+      gameScene?.restoreBoard(previousGridSnapshot);
       scoreManager.reset(previousScoreSnapshot);
       previousGridSnapshot = null;
       updateStatsUI();
+      saveActiveGameState();
       showNotification('↩️ Move undone! (-15 🪙)');
     } else {
       AdService.showRewardedAd('undo', () => {
-        gameScene?.resetBoard(previousGridSnapshot!);
+        gameScene?.restoreBoard(previousGridSnapshot!);
         scoreManager.reset(previousScoreSnapshot);
         previousGridSnapshot = null;
         updateStatsUI();
+        saveActiveGameState();
         showNotification('↩️ Move undone via Rewarded Ad!');
       });
     }
@@ -388,6 +500,7 @@ function setupEventListeners(): void {
       updateThemePill();
       gameScene?.setTheme(activeThemeId);
       tryGenerateNewOrder(true);
+      saveActiveGameState();
       showNotification(`🎨 Theme switched to ${getTheme(activeThemeId).name}!`);
     });
   });
@@ -456,4 +569,3 @@ function setupEventListeners(): void {
 window.addEventListener('DOMContentLoaded', () => {
   initGame();
 });
-

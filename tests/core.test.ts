@@ -199,6 +199,58 @@ describe('Merge Mess Core Mechanics', () => {
       expect(upgraded?.value).toBe(16);
       expect(boostMgr.getRemaining()).toBe(1);
     });
+
+    it('rejects upgrading a tile that is already at maximum tier', () => {
+      const boostMgr = new SambarBoostManager(1);
+      const grid = createEmptyGrid(4);
+      grid[1][1] = { id: 11, tier: 11, value: 2048, r: 1, c: 1 };
+
+      // Cannot upgrade tier 11 when maxTier is 11
+      const result = boostMgr.applyBoost(grid, 1, 1, 11);
+      expect(result).toBeNull();
+      // Boost count should NOT be consumed
+      expect(boostMgr.getRemaining()).toBe(1);
+    });
+  });
+
+  describe('Order Doubling & Seeded Generation', () => {
+    it('doubles active order rewards when requested', () => {
+      const orderMgr = new OrderManager();
+      orderMgr.setActiveOrder({
+        id: 'ord_1',
+        targetTier: 3,
+        targetCount: 1,
+        currentCount: 0,
+        rewardCoins: 15,
+        rewardScore: 150,
+        customerName: 'Priya',
+        customerEmoji: '👧🏽',
+        createdAt: Date.now()
+      });
+
+      expect(orderMgr.doubleActiveOrderReward()).toBe(true);
+      expect(orderMgr.getActiveOrder()?.rewardCoins).toBe(30);
+      expect(orderMgr.getActiveOrder()?.rewardScore).toBe(300);
+      expect(orderMgr.getActiveOrder()?.isDoubled).toBe(true);
+
+      // Cannot double twice
+      expect(orderMgr.doubleActiveOrderReward()).toBe(false);
+    });
+
+    it('produces identical customer orders for same RNG seed', () => {
+      const orderMgr1 = new OrderManager();
+      const orderMgr2 = new OrderManager();
+      const rng1 = new SeededRNG('daily-orders-test');
+      const rng2 = new SeededRNG('daily-orders-test');
+      const themeNames = { 2: 'Idli', 3: 'Dosa', 4: 'Vada', 5: 'Pongal' };
+
+      const o1 = orderMgr1.generateOrder(4, themeNames, true, 1000, rng1);
+      const o2 = orderMgr2.generateOrder(4, themeNames, true, 1000, rng2);
+
+      expect(o1?.targetTier).toBe(o2?.targetTier);
+      expect(o1?.targetCount).toBe(o2?.targetCount);
+      expect(o1?.customerName).toBe(o2?.customerName);
+    });
   });
 
   describe('Score & Best Score', () => {

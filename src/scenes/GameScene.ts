@@ -7,12 +7,13 @@ import { AudioService } from '../services/audio.ts';
 import { SeededRNG } from '../core/rng.ts';
 
 export interface GameSceneCallbacks {
+  onBeforeMove: (grid: Grid) => void;
   onScoreGained: (score: number) => void;
   onMerges: (merges: { tier: number }[]) => void;
   onTripleMerge: () => void;
   onWin: () => void;
   onGameOver: (highestTier: number) => void;
-  onBoostUsed: () => void;
+  onBoostTileTapped: (r: number, c: number) => boolean;
 }
 
 export interface StartRunConfig {
@@ -156,6 +157,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Restores a board snapshot (for Undo) while keeping the daily RNG state intact!
+   */
+  public restoreBoard(grid: Grid): void {
+    this.bufferedDirection = null;
+    this.isAnimating = false;
+    this.tweens.killAll();
+
+    this.tileContainers.forEach(container => {
+      if (container) {
+        container.destroy();
+      }
+    });
+    this.tileContainers.clear();
+
+    this.grid = cloneGrid(grid);
+    this.drawBackgroundGrid();
+    this.renderTilesImmediate();
+  }
+
+  /**
    * Clears 4 lowest tiles to continue the game after ad revive!
    */
   public continueRevive(): void {
@@ -289,12 +310,12 @@ export class GameScene extends Phaser.Scene {
         ) {
           const tile = this.grid[r][c];
           if (tile) {
-            tile.tier += 1;
-            tile.value = Math.pow(2, tile.tier);
-            AudioService.playBoost();
-            this.callbacks.onBoostUsed();
-            this.setSambarMode(false);
-            this.renderTilesImmediate();
+            const upgraded = this.callbacks.onBoostTileTapped(r, c);
+            if (upgraded) {
+              AudioService.playBoost();
+              this.setSambarMode(false);
+              this.renderTilesImmediate();
+            }
             return;
           }
         }
@@ -309,10 +330,17 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const result = executeMove(this.grid, direction, 11, this.rng);
+    // Take board snapshot before mutating grid
+    const preMoveGrid = cloneGrid(this.grid);
+
+    const theme = getTheme(this.themeId);
+    const result = executeMove(this.grid, direction, theme.totalTiers, this.rng);
     if (!result.changed) {
       return;
     }
+
+    // Inform main to save previous grid snapshot for reliable Undo
+    this.callbacks.onBeforeMove(preMoveGrid);
 
     AudioService.playSwipe();
     this.isAnimating = true;

@@ -1,3 +1,5 @@
+import { Grid, Order } from '../core/types.ts';
+
 export interface SaveData {
   bestScore: number;
   coins: number;
@@ -5,8 +7,13 @@ export interface SaveData {
   activeThemeId: string;
   dailyStreak: number;
   lastDailyDate: string | null;
+  lastDailyRewardDate: string | null;
   soundEnabled: boolean;
   seenTamilInfo: string[];
+  savedGrid: Grid | null;
+  savedScore: number;
+  savedBoosts: number;
+  savedOrder: Order | null;
 }
 
 const STORAGE_KEY = 'MERGE_MESS_SAVE_V1';
@@ -18,8 +25,13 @@ const DEFAULT_SAVE: SaveData = {
   activeThemeId: 'classic-food',
   dailyStreak: 0,
   lastDailyDate: null,
+  lastDailyRewardDate: null,
   soundEnabled: true,
-  seenTamilInfo: []
+  seenTamilInfo: [],
+  savedGrid: null,
+  savedScore: 0,
+  savedBoosts: 1,
+  savedOrder: null
 };
 
 export class StorageService {
@@ -78,5 +90,13 @@ export class StorageService {
     }
     return false;
   }
-}
 
+  public static clearSavedBoard(): void {
+    this.save({
+      savedGrid: null,
+      savedScore: 0,
+      savedBoosts: 1,
+      savedOrder: null
+    });
+  }
+}

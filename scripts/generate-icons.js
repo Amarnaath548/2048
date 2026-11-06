@@ -116,3 +116,4 @@ const icon512 = createPNG(512, 512, 234, 88, 12);
 fs.writeFileSync('public/icons/icon-512.png', icon512);
 
 console.log('PNG Icons successfully generated in public/icons/');
+

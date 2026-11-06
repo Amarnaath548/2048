@@ -1,4 +1,5 @@
 import { Order } from './types.ts';
+import { SeededRNG } from './rng.ts';
 
 const CUSTOMERS = [
   { name: 'Kavitha Akka', emoji: '👩🏽‍🍳' },
@@ -12,7 +13,7 @@ const CUSTOMERS = [
 export class OrderManager {
   private activeOrder: Order | null = null;
   private lastOrderGeneratedTime = 0;
-  private orderMinCooldownMs = 15000; // Cooldown between orders (or 30s)
+  private orderMinCooldownMs = 30000; // Plan specifies at most one new order every 30 seconds
 
   public getActiveOrder(): Order | null {
     return this.activeOrder;
@@ -24,13 +25,14 @@ export class OrderManager {
 
   /**
    * Generates a new customer order based on player's highest current tier.
-   * Never asks for an impossible tier! Target tier is bounded between 2 and max(2, highestTier).
+   * If rng is provided (Daily Challenge), order generation is 100% deterministic!
    */
   public generateOrder(
     highestCurrentTier: number,
     themeTierNames: { [tier: number]: string },
     force = false,
-    now = Date.now()
+    now = Date.now(),
+    rng?: SeededRNG
   ): Order | null {
     if (this.activeOrder && !force) {
       return this.activeOrder;
@@ -40,23 +42,33 @@ export class OrderManager {
       return null;
     }
 
-    // Customer picks a dish reachable by player: between tier 2 and min(highestCurrentTier + 1, 11)
+    // Customer picks a dish reachable by player: between tier 2 and min(highestCurrentTier + 1, 10)
     const minTier = 2;
     const maxPossible = Math.max(minTier, Math.min(highestCurrentTier + 1, 10));
-    const targetTier = Math.floor(Math.random() * (maxPossible - minTier + 1)) + minTier;
+
+    const targetTier = rng
+      ? rng.nextInt(minTier, maxPossible)
+      : Math.floor(Math.random() * (maxPossible - minTier + 1)) + minTier;
 
     // Quantity: 1 or 2 (higher tier usually 1)
-    const targetCount = targetTier >= 6 ? 1 : Math.random() < 0.6 ? 1 : 2;
+    const roll = rng ? rng.next() : Math.random();
+    const targetCount = targetTier >= 6 ? 1 : roll < 0.6 ? 1 : 2;
 
-    const dishName = themeTierNames[targetTier] || `Tier ${targetTier}`;
-    const customer = CUSTOMERS[Math.floor(Math.random() * CUSTOMERS.length)];
+    const custIdx = rng
+      ? rng.nextInt(0, CUSTOMERS.length - 1)
+      : Math.floor(Math.random() * CUSTOMERS.length);
+    const customer = CUSTOMERS[custIdx];
 
     // Rewards scale with tier and count
     const rewardCoins = targetTier * 5 * targetCount;
     const rewardScore = targetTier * 50 * targetCount;
 
+    const idSuffix = rng
+      ? Math.floor(rng.next() * 100000).toString()
+      : Math.random().toString(36).substring(2, 6);
+
     const newOrder: Order = {
-      id: `ord_${now}_${Math.random().toString(36).substring(2, 6)}`,
+      id: `ord_${now}_${idSuffix}`,
       targetTier,
       targetCount,
       currentCount: 0,
@@ -64,12 +76,26 @@ export class OrderManager {
       rewardScore,
       customerName: customer.name,
       customerEmoji: customer.emoji,
-      createdAt: now
+      createdAt: now,
+      isDoubled: false
     };
 
     this.activeOrder = newOrder;
     this.lastOrderGeneratedTime = now;
     return newOrder;
+  }
+
+  /**
+   * Doubles the coins & score rewards for the active order (from Rewarded Ad).
+   */
+  public doubleActiveOrderReward(): boolean {
+    if (!this.activeOrder || this.activeOrder.isDoubled) {
+      return false;
+    }
+    this.activeOrder.isDoubled = true;
+    this.activeOrder.rewardCoins *= 2;
+    this.activeOrder.rewardScore *= 2;
+    return true;
   }
 
   /**
@@ -112,4 +138,3 @@ export class OrderManager {
     this.lastOrderGeneratedTime = Date.now();
   }
 }
-

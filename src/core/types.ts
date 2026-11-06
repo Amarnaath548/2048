@@ -24,6 +24,7 @@ export interface Order {
   customerEmoji: string;
   createdAt: number;
   timeLimitSec?: number;
+  isDoubled?: boolean;
 }
 
 export interface ThemeTier {

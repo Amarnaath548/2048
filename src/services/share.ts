@@ -6,6 +6,8 @@ export interface DailyShareParams {
   streak: number;
 }
 
+export const CANONICAL_GAME_URL = 'https://amarnaath548.github.io/merge-mess/';
+
 export class ShareService {
   public static generateShareText(params: DailyShareParams): string {
     return (
@@ -13,7 +15,7 @@ export class ShareService {
       `🔥 Score: ${params.score.toLocaleString()}\n` +
       `👑 Mastered: ${params.highestTierSymbol} ${params.highestTierName}\n` +
       `⚡ Daily Streak: ${params.streak} days\n\n` +
-      `Can you reach the Golden Feast? Play free: ${window.location.origin}`
+      `Can you reach the Golden Feast? Play free: ${CANONICAL_GAME_URL}`
     );
   }
 
@@ -24,7 +26,8 @@ export class ShareService {
       try {
         await navigator.share({
           title: 'Merge Mess Daily Result',
-          text
+          text,
+          url: CANONICAL_GAME_URL
         });
         return true;
       } catch {
@@ -38,4 +41,3 @@ export class ShareService {
     return true;
   }
 }
-

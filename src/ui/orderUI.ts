@@ -37,16 +37,21 @@ export class OrderUI {
           <div class="order-avatar">${order.customerEmoji}</div>
           <div>
             <div class="order-title">${order.customerName}'s Order</div>
-            <div class="order-desc">Make ${order.targetCount}x ${dishName}</div>
+            <div class="order-desc">Make ${order.targetCount}x ${dishName} (${order.currentCount}/${order.targetCount})</div>
             <div class="order-progress-bar">
               <div class="order-progress-fill" style="width: ${percent}%;"></div>
             </div>
           </div>
         </div>
-        <div class="order-right">
-          <div class="order-reward-badge" title="Reward on completing this order">
-            +${order.rewardCoins} 🪙 +${order.rewardScore} ⭐
+        <div class="order-right" style="display: flex; align-items: center; gap: 6px;">
+          <div class="order-reward-badge" style="${order.isDoubled ? 'background: #fef08a; border-color: #eab308; color: #854d0e; font-weight: 800;' : ''}" title="Reward on completing this order">
+            ${order.isDoubled ? '🔥 2X: ' : ''}+${order.rewardCoins} 🪙 +${order.rewardScore} ⭐
           </div>
+          ${
+            !order.isDoubled
+              ? `<button id="double-reward-btn" style="background: #0284c7; color: #fff; border: none; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer;" title="Watch a quick ad to double this order reward!">🎬 2x</button>`
+              : ''
+          }
           <button id="skip-order-btn" class="skip-btn" title="Skip this order (free)">✕</button>
         </div>
       </div>
@@ -56,6 +61,10 @@ export class OrderUI {
     if (skipBtn) {
       skipBtn.addEventListener('click', () => this.onSkipCallback());
     }
+
+    const doubleBtn = this.container.querySelector('#double-reward-btn');
+    if (doubleBtn) {
+      doubleBtn.addEventListener('click', () => this.onDoubleRewardCallback());
+    }
   }
 }
-
