@@ -623,8 +623,8 @@ export class ModalManager {
 
     const tiersList = theme.tiers.map(t => `
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 18px; width: 24px; text-align: center;">${t.symbol}</span>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          ${t.iconSvg ? `<div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">${t.iconSvg}</div>` : `<span style="font-size: 18px; width: 28px; text-align: center;">${t.symbol}</span>`}
           <div>
             <div style="font-size: 13px; font-weight: bold; color: #1e293b;">${t.name}</div>
             <div style="font-size: 11px; color: #64748b;">${t.tamilName || ''}</div>
@@ -839,7 +839,7 @@ export class ModalManager {
           return `
             <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); position: relative; overflow: hidden;">
               <div style="display: flex; align-items: center; justify-content: space-between;">
-                <span style="font-size: 28px;">${t.symbol}</span>
+                ${t.iconSvg ? `<div style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">${t.iconSvg}</div>` : `<span style="font-size: 28px;">${t.symbol}</span>`}
                 <span style="font-size: 11px; font-weight: 800; background: #fff7ed; color: #ea580c; padding: 2px 8px; border-radius: 12px;">Tier ${t.tier} (${t.value} pts)</span>
               </div>
               <div>

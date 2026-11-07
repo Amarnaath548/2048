@@ -5,6 +5,7 @@ import { spawnRandomTile } from '../core/spawn.ts';
 import { getTheme } from '../themes/index.ts';
 import { AudioService } from '../services/audio.ts';
 import { SeededRNG } from '../core/rng.ts';
+import { initFoodTextures } from '../assets/foodIcons.ts';
 
 export interface GameSceneCallbacks {
   onBeforeMove: (grid: Grid) => void;
@@ -70,6 +71,13 @@ export class GameScene extends Phaser.Scene {
 
     this.setupInput();
     this.isSceneReady = true;
+
+    // Pre-initialize authentic vector food illustrations
+    initFoodTextures(this).then(() => {
+      if (this.themeId === 'classic-food') {
+        this.renderTilesImmediate();
+      }
+    });
 
     if (this.pendingRunConfig) {
       this.startNewRun(this.pendingRunConfig);
@@ -546,21 +554,29 @@ export class GameScene extends Phaser.Scene {
     bg.fillRoundedRect(-half, half - 5, this.cellSize, 5, { tl: 0, tr: 0, bl: 10, br: 10 });
     container.add(bg);
 
-    // Center Symbol / Emoji
+    // Center Food Illustration or Tamil Letter
     const isTamilTheme = this.themeId === 'tamil-letters';
-    const symbolText = this.add.text(
-      0,
-      isTamilTheme ? -5 : -7,
-      tierDef.symbol,
-      {
-        fontFamily: isTamilTheme ? 'Noto Sans Tamil' : 'Fredoka, sans-serif',
-        fontSize: isTamilTheme ? '38px' : '32px',
-        fontStyle: 'bold',
-        color: tierDef.textColor,
-        align: 'center'
-      }
-    ).setOrigin(0.5);
-    container.add(symbolText);
+    const textureKey = `food_tier_${tile.tier}`;
+
+    if (!isTamilTheme && this.textures.exists(textureKey)) {
+      const foodImg = this.add.image(0, -6, textureKey);
+      foodImg.setDisplaySize(48, 48);
+      container.add(foodImg);
+    } else {
+      const symbolText = this.add.text(
+        0,
+        isTamilTheme ? -5 : -7,
+        tierDef.symbol,
+        {
+          fontFamily: isTamilTheme ? 'Noto Sans Tamil' : 'Fredoka, sans-serif',
+          fontSize: isTamilTheme ? '38px' : '32px',
+          fontStyle: 'bold',
+          color: tierDef.textColor,
+          align: 'center'
+        }
+      ).setOrigin(0.5);
+      container.add(symbolText);
+    }
 
     // Subtitle label
     const labelStr = isTamilTheme

@@ -1,4 +1,5 @@
 import { ThemeDefinition } from '../core/types.ts';
+import { FOOD_SVG_MAP } from '../assets/foodIcons.ts';
 
 export const CLASSIC_FOOD_THEME: ThemeDefinition = {
   id: 'classic-food',
@@ -18,7 +19,8 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       value: 2,
       bgColor: '#fdf6e2',
       textColor: '#776e65',
-      symbol: '🌾',
+      symbol: '🍚',
+      iconSvg: FOOD_SVG_MAP[1],
       funFact: 'Every great South Indian feast begins with a single grain of ponni rice!'
     },
     {
@@ -29,6 +31,7 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       bgColor: '#fffae6',
       textColor: '#776e65',
       symbol: '⚪',
+      iconSvg: FOOD_SVG_MAP[2],
       funFact: 'Steamed to fluffy perfection, paired with gun-powder podi and chutney!'
     },
     {
@@ -38,7 +41,8 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       value: 8,
       bgColor: '#f2b179',
       textColor: '#ffffff',
-      symbol: '🥞',
+      symbol: '🌯',
+      iconSvg: FOOD_SVG_MAP[3],
       funFact: 'Golden roast ghee roast dosa, crispy on the outside and soft inside.'
     },
     {
@@ -48,7 +52,8 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       value: 16,
       bgColor: '#f59563',
       textColor: '#ffffff',
-      symbol: '🥯',
+      symbol: '🍩',
+      iconSvg: FOOD_SVG_MAP[4],
       funFact: 'Crunchy golden exterior with cumin, curry leaves and pepper!'
     },
     {
@@ -59,6 +64,7 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       bgColor: '#f67c5f',
       textColor: '#ffffff',
       symbol: '🥣',
+      iconSvg: FOOD_SVG_MAP[5],
       funFact: 'Comfort in a bowl cooked with ghee, roasted cashews and black pepper.'
     },
     {
@@ -68,7 +74,8 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       value: 64,
       bgColor: '#f65e3b',
       textColor: '#ffffff',
-      symbol: '🍲',
+      symbol: '🥘',
+      iconSvg: FOOD_SVG_MAP[6],
       funFact: 'Tangy tamarind, shallots and aromatic sambar podi bubbling hot!'
     },
     {
@@ -79,6 +86,7 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       bgColor: '#edcf72',
       textColor: '#ffffff',
       symbol: '🍛',
+      iconSvg: FOOD_SVG_MAP[7],
       funFact: 'Fragrant seeraga samba rice simmered with whole spices and tender masala!'
     },
     {
@@ -88,7 +96,8 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       value: 256,
       bgColor: '#edcc61',
       textColor: '#ffffff',
-      symbol: '🍱',
+      symbol: '🍽️',
+      iconSvg: FOOD_SVG_MAP[8],
       funFact: 'A silver platter packed with kootu, poriyal, rasam, curd and appalam!'
     },
     {
@@ -98,7 +107,8 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       value: 512,
       bgColor: '#4caf50',
       textColor: '#ffffff',
-      symbol: '🍃',
+      symbol: '🌿',
+      iconSvg: FOOD_SVG_MAP[9],
       funFact: 'A grand traditional meal served piping hot on a fresh emerald plantain leaf!'
     },
     {
@@ -108,7 +118,8 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       value: 1024,
       bgColor: '#ff9800',
       textColor: '#ffffff',
-      symbol: '👑',
+      symbol: '🎉',
+      iconSvg: FOOD_SVG_MAP[10],
       funFact: 'Weddings and Pongal celebrations — unlimited payasam and vadai!'
     },
     {
@@ -118,7 +129,8 @@ export const CLASSIC_FOOD_THEME: ThemeDefinition = {
       value: 2048,
       bgColor: '#ffb300',
       textColor: '#ffffff',
-      symbol: '✨',
+      symbol: '👑',
+      iconSvg: FOOD_SVG_MAP[11],
       funFact: 'The pinnacle of culinary mastery! Reaching this tier wins the game!'
     }
   ]
