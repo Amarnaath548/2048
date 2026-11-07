@@ -6,7 +6,9 @@ export interface GameStats {
   ordersCompleted: number;
   highestDishReached: string;
   highestDishTier: number;
+  highestTamilTier: number;
   sambarBoostsUsed: number;
+  totalScoreEarned: number;
 }
 
 export interface SaveData {
@@ -25,6 +27,10 @@ export interface SaveData {
   savedOrder: Order | null;
   hasSeenTutorial: boolean;
   stats: GameStats;
+  dailyLoginStreak: number;
+  lastDailyLoginClaimDate: string | null;
+  unlockedAchievements: string[];
+  unlockedDishTiers: { [themeId: string]: number[] };
 }
 
 const STORAGE_KEY = 'MERGE_MESS_SAVE_V1';
@@ -35,7 +41,9 @@ const DEFAULT_STATS: GameStats = {
   ordersCompleted: 0,
   highestDishReached: 'Rice Grain',
   highestDishTier: 1,
-  sambarBoostsUsed: 0
+  highestTamilTier: 1,
+  sambarBoostsUsed: 0,
+  totalScoreEarned: 0
 };
 
 const DEFAULT_SAVE: SaveData = {
@@ -53,7 +61,14 @@ const DEFAULT_SAVE: SaveData = {
   savedBoosts: 1,
   savedOrder: null,
   hasSeenTutorial: false,
-  stats: DEFAULT_STATS
+  stats: DEFAULT_STATS,
+  dailyLoginStreak: 0,
+  lastDailyLoginClaimDate: null,
+  unlockedAchievements: [],
+  unlockedDishTiers: {
+    'classic-food': [1],
+    'tamil-letters': [1]
+  }
 };
 
 export class StorageService {
@@ -123,6 +138,42 @@ export class StorageService {
       return true;
     }
     return false;
+  }
+
+  public static recordDishTier(themeId: string, tier: number): boolean {
+    const data = this.load();
+    const currentTiers = data.unlockedDishTiers[themeId] || [];
+    if (!currentTiers.includes(tier)) {
+      const updatedTiers = [...currentTiers, tier].sort((a, b) => a - b);
+      const unlockedDishTiers = {
+        ...data.unlockedDishTiers,
+        [themeId]: updatedTiers
+      };
+      this.save({ unlockedDishTiers });
+      return true; // Newly unlocked dish!
+    }
+    return false;
+  }
+
+  public static unlockAchievement(id: string): boolean {
+    const data = this.load();
+    const achievements = data.unlockedAchievements || [];
+    if (!achievements.includes(id)) {
+      const updated = [...achievements, id];
+      this.save({ unlockedAchievements: updated });
+      return true;
+    }
+    return false;
+  }
+
+  public static claimDailyReward(todayStr: string, streak: number, coins: number): void {
+    const data = this.load();
+    const newCoins = data.coins + coins;
+    this.save({
+      coins: newCoins,
+      dailyLoginStreak: streak,
+      lastDailyLoginClaimDate: todayStr
+    });
   }
 
   public static clearSavedBoard(): void {

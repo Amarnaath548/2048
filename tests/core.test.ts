@@ -9,6 +9,10 @@ import { createDailyBoard } from '../src/core/daily.ts';
 import { spawnRandomTile, resetTileIdCounter } from '../src/core/spawn.ts';
 import { Grid, Tile } from '../src/core/types.ts';
 
+import { DailyRewardManager, SEVEN_DAY_REWARDS } from '../src/core/dailyReward.ts';
+import { AchievementManager, ACHIEVEMENTS } from '../src/core/achievements.ts';
+import { SaveData } from '../src/services/storage.ts';
+
 describe('Merge Mess Core Mechanics', () => {
   describe('Line sliding and merging rules', () => {
     it('slides tiles towards start of line without gap', () => {
@@ -279,6 +283,98 @@ describe('Merge Mess Core Mechanics', () => {
       expect(isNewBest).toBe(true);
       expect(scoreMgr.getScore()).toBe(130);
       expect(scoreMgr.getBestScore()).toBe(130);
+    });
+  });
+
+  describe('Daily Reward 7-Day Progression', () => {
+    it('accurately identifies when daily reward is claimable', () => {
+      expect(DailyRewardManager.isRewardClaimable(null, '2026-11-06')).toBe(true);
+      expect(DailyRewardManager.isRewardClaimable('2026-11-05', '2026-11-06')).toBe(true);
+      expect(DailyRewardManager.isRewardClaimable('2026-11-06', '2026-11-06')).toBe(false);
+    });
+
+    it('advances streak consecutively and resets on missed days', () => {
+      // First day
+      expect(DailyRewardManager.getNextClaimDay(null, 0, '2026-11-06')).toBe(1);
+
+      // Consecutive next day
+      expect(DailyRewardManager.getNextClaimDay('2026-11-05', 1, '2026-11-06')).toBe(2);
+      expect(DailyRewardManager.getNextClaimDay('2026-11-05', 6, '2026-11-06')).toBe(7);
+
+      // Missed day resets to day 1
+      expect(DailyRewardManager.getNextClaimDay('2026-11-01', 4, '2026-11-06')).toBe(1);
+    });
+
+    it('has 7 defined reward tiers with escalating value', () => {
+      expect(SEVEN_DAY_REWARDS.length).toBe(7);
+      expect(SEVEN_DAY_REWARDS[6].coins).toBe(150); // Jackpot day 7
+      expect(SEVEN_DAY_REWARDS[6].boosts).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('Achievements System', () => {
+    const mockSave: SaveData = {
+      bestScore: 500,
+      coins: 100,
+      unlockedThemes: ['classic-food'],
+      activeThemeId: 'classic-food',
+      dailyStreak: 3,
+      lastDailyDate: '2026-11-06',
+      lastDailyRewardDate: '2026-11-06',
+      soundEnabled: true,
+      seenTamilInfo: [],
+      savedGrid: null,
+      savedScore: 0,
+      savedBoosts: 1,
+      savedOrder: null,
+      hasSeenTutorial: true,
+      stats: {
+        gamesPlayed: 5,
+        totalMerges: 45,
+        ordersCompleted: 10,
+        highestDishReached: 'Dindigul Biryani',
+        highestDishTier: 7,
+        highestTamilTier: 1,
+        sambarBoostsUsed: 5,
+        totalScoreEarned: 2400
+      },
+      dailyLoginStreak: 2,
+      lastDailyLoginClaimDate: '2026-11-05',
+      unlockedAchievements: [],
+      unlockedDishTiers: {
+        'classic-food': [1, 2, 3, 4, 5, 6, 7]
+      }
+    };
+
+    it('detects dish tier achievements like Reach Biryani', () => {
+      const unlocks = AchievementManager.checkNewUnlocks(mockSave);
+      const ids = unlocks.map(u => u.id);
+
+      expect(ids).toContain('reach_idli');
+      expect(ids).toContain('reach_dosa');
+      expect(ids).toContain('reach_pongal');
+      expect(ids).toContain('reach_biryani'); // "Reach Biryani" requirement
+      expect(ids).toContain('orders_10');
+      expect(ids).toContain('daily_devotee');
+      expect(ids).toContain('recipe_collector_7');
+      expect(ids).not.toContain('reach_golden_feast'); // not reached tier 11 yet
+    });
+
+    it('detects combo achievements during swipe move event', () => {
+      const unlocks = AchievementManager.checkNewUnlocks(mockSave, { combo: true });
+      const ids = unlocks.map(u => u.id);
+      expect(ids).toContain('combo_virtuoso');
+    });
+
+    it('never re-unlocks already unlocked achievements', () => {
+      const alreadySaved: SaveData = {
+        ...mockSave,
+        unlockedAchievements: ['reach_idli', 'reach_biryani']
+      };
+      const unlocks = AchievementManager.checkNewUnlocks(alreadySaved);
+      const ids = unlocks.map(u => u.id);
+      expect(ids).not.toContain('reach_idli');
+      expect(ids).not.toContain('reach_biryani');
     });
   });
 });

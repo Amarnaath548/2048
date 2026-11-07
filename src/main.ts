@@ -14,6 +14,8 @@ import { cloneGrid, canMove } from './core/board.ts';
 import { resetTileIdCounter } from './core/spawn.ts';
 import { Grid } from './core/types.ts';
 import { SeededRNG } from './core/rng.ts';
+import { AchievementManager } from './core/achievements.ts';
+import { DailyRewardManager } from './core/dailyReward.ts';
 
 // State & Managers
 let game: Phaser.Game | null = null;
@@ -59,6 +61,7 @@ function initGame(): void {
   updateThemePill();
   updateBoostBadge();
   updateDailyBadge();
+  updateGiftButtonBadge();
 
   // Initialize Order UI with working Skip and Double Reward ad callbacks
   orderUI = new OrderUI(
@@ -129,8 +132,13 @@ function initGame(): void {
       setTimeout(() => {
         ModalManager.showTutorialModal(() => {
           showNotification('Ready to cook! Swipe to merge dishes 🥘');
+          checkDailyLoginPrompt();
         });
       }, 350);
+    } else {
+      setTimeout(() => {
+        checkDailyLoginPrompt();
+      }, 500);
     }
   });
 
@@ -166,6 +174,7 @@ function resumeSavedGame(save: SaveData): void {
   updateStatsUI();
   updateBoostBadge();
   updateGoalBanner();
+  updateGiftButtonBadge();
 
   gameScene?.startNewRun({
     themeId: activeThemeId,
@@ -201,6 +210,7 @@ function startNewGame(isDaily = false): void {
   updateStatsUI();
   updateBoostBadge();
   updateGoalBanner();
+  updateGiftButtonBadge();
 
   if (isDailyMode) {
     const todayStr = getTodayDateString();
@@ -264,6 +274,19 @@ function createCallbacks() {
       });
       updateGoalBanner();
 
+      // Record newly discovered recipes in Collection Codex
+      for (const m of merges) {
+        const isNewDish = StorageService.recordDishTier(activeThemeId, m.tier);
+        if (isNewDish) {
+          const theme = getTheme(activeThemeId);
+          const dish = theme.tiers.find(t => t.tier === m.tier);
+          showNotification(`📖 Recipe Unlocked: ${dish?.name || 'New Dish'}! Check Recipe Codex 📖`);
+        }
+      }
+
+      // Check achievements for reaching dish tiers
+      checkAndUnlockAchievements();
+
       const orderResult = orderManager.onMerges(merges);
       if (orderResult && orderResult.completed) {
         AudioService.playOrderComplete();
@@ -274,6 +297,7 @@ function createCallbacks() {
 
         showNotification(`🎉 Order Complete! +${orderResult.coinsGained} 🪙 +${orderResult.scoreBonus} ⭐`);
         orderUI.render(null, activeThemeId);
+        checkAndUnlockAchievements();
         saveActiveGameState();
         setTimeout(() => tryGenerateNewOrder(false), 5000);
       } else {
@@ -291,6 +315,7 @@ function createCallbacks() {
         saveActiveGameState();
         showNotification('✨ 3-Merge Combo! +1 Sambar Boost earned!');
       }
+      checkAndUnlockAchievements({ combo: true });
     },
     onWin: () => {
       if (!hasReachedWinThisRun) {
@@ -367,9 +392,15 @@ function createCallbacks() {
       const upgraded = boostManager.applyBoost(grid, r, c, theme.totalTiers);
       if (upgraded) {
         StorageService.updateStats(s => { s.sambarBoostsUsed++; });
+        const isNew = StorageService.recordDishTier(activeThemeId, upgraded.tier);
+        if (isNew) {
+          const dish = theme.tiers.find(t => t.tier === upgraded.tier);
+          showNotification(`📖 Recipe Unlocked: ${dish?.name || 'New Dish'}! Check Recipe Codex 📖`);
+        }
         boostIndicatorEl.classList.add('hidden');
         updateBoostBadge();
         updateGoalBanner();
+        checkAndUnlockAchievements();
         saveActiveGameState();
         const newTierInfo = theme.tiers.find(t => t.tier === upgraded.tier);
         showNotification(`🍲 Upgraded to ${newTierInfo?.symbol} ${newTierInfo?.name}!`);
@@ -467,6 +498,58 @@ function updateGoalBanner(): void {
     goalTierBadgeEl.textContent = `Tier ${currentHighest}/${theme.totalTiers}`;
     goalTierBadgeEl.style.background = '#ffedd5';
     goalTierBadgeEl.style.color = '#c2410c';
+  }
+}
+
+function updateGiftButtonBadge(): void {
+  const save = StorageService.load();
+  const todayStr = getTodayDateString();
+  const isClaimable = DailyRewardManager.isRewardClaimable(save.lastDailyLoginClaimDate, todayStr);
+  const headerGiftBtn = document.getElementById('header-gift-btn');
+  const dailyGiftBtn = document.getElementById('daily-gift-btn');
+
+  if (headerGiftBtn) {
+    if (isClaimable) {
+      headerGiftBtn.classList.add('gift-pulse');
+    } else {
+      headerGiftBtn.classList.remove('gift-pulse');
+    }
+  }
+
+  if (dailyGiftBtn) {
+    dailyGiftBtn.textContent = isClaimable ? '🎁 Gift (Ready!)' : '🎁 Gift';
+  }
+}
+
+function checkDailyLoginPrompt(): void {
+  const save = StorageService.load();
+  const todayStr = getTodayDateString();
+  if (DailyRewardManager.isRewardClaimable(save.lastDailyLoginClaimDate, todayStr)) {
+    ModalManager.showDailyRewardModal((coins, boosts) => {
+      if (boosts > 0) {
+        boostManager.addBoost();
+        updateBoostBadge();
+      }
+      updateStatsUI();
+      updateGiftButtonBadge();
+      saveActiveGameState();
+      showNotification(`🎉 Claimed daily gift: +${coins} 🪙 ${boosts > 0 ? `+${boosts} 🍲` : ''}!`);
+      checkAndUnlockAchievements();
+    });
+  }
+}
+
+function checkAndUnlockAchievements(context?: Record<string, any>): void {
+  const save = StorageService.load();
+  const newUnlocks = AchievementManager.checkNewUnlocks(save, context);
+  for (const ach of newUnlocks) {
+    StorageService.unlockAchievement(ach.id);
+    StorageService.addCoins(ach.rewardCoins);
+    updateStatsUI();
+    ModalManager.showAchievementToast(ach);
+  }
+  if (newUnlocks.length > 0) {
+    saveActiveGameState();
   }
 }
 
@@ -620,6 +703,37 @@ function setupEventListeners(): void {
 
   document.getElementById('header-settings-btn')?.addEventListener('click', openSettings);
   document.getElementById('settings-btn')?.addEventListener('click', openSettings);
+
+  // Daily Gift Button (Header and Sub-controls)
+  const openDailyReward = () => {
+    AudioService.playTap();
+    ModalManager.showDailyRewardModal((coins, boosts) => {
+      if (boosts > 0) {
+        boostManager.addBoost();
+        updateBoostBadge();
+      }
+      updateStatsUI();
+      updateGiftButtonBadge();
+      saveActiveGameState();
+      showNotification(`🎉 Claimed daily gift: +${coins} 🪙 ${boosts > 0 ? `+${boosts} 🍲` : ''}!`);
+      checkAndUnlockAchievements();
+    });
+  };
+
+  document.getElementById('header-gift-btn')?.addEventListener('click', openDailyReward);
+  document.getElementById('daily-gift-btn')?.addEventListener('click', openDailyReward);
+
+  // Recipe Lore / Collection Book
+  document.getElementById('collection-btn')?.addEventListener('click', () => {
+    AudioService.playTap();
+    ModalManager.showCollectionModal(activeThemeId);
+  });
+
+  // Achievements Modal
+  document.getElementById('achievements-btn')?.addEventListener('click', () => {
+    AudioService.playTap();
+    ModalManager.showAchievementsModal();
+  });
 
   // Stats Modal
   document.getElementById('stats-btn')?.addEventListener('click', () => {

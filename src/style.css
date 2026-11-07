@@ -100,6 +100,17 @@ html, body {
   background: #e2e8f0;
 }
 
+@keyframes giftBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18) rotate(-6deg); }
+}
+
+.gift-pulse {
+  animation: giftBounce 2.2s infinite ease-in-out;
+  background: #fef3c7 !important;
+  border-color: #f59e0b !important;
+}
+
 /* Clear Goal Banner */
 .target-goal-banner {
   background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);

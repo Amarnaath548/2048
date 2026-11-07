@@ -3,6 +3,9 @@ import { ALL_THEMES, getTheme } from '../themes/index.ts';
 import { ShareService } from '../services/share.ts';
 import { AdService } from '../services/ads.ts';
 import { AudioService } from '../services/audio.ts';
+import { ACHIEVEMENTS, Achievement } from '../core/achievements.ts';
+import { SEVEN_DAY_REWARDS, DailyRewardManager } from '../core/dailyReward.ts';
+import { getTodayDateString } from '../core/daily.ts';
 import confetti from 'canvas-confetti';
 
 export class ModalManager {
@@ -184,6 +187,14 @@ export class ModalManager {
   public static showStatsModal(): void {
     const save = StorageService.load();
     const stats = save.stats;
+    const foodUnlocked = (save.unlockedDishTiers['classic-food'] || []).length;
+    const achUnlocked = (save.unlockedAchievements || []).length;
+    const todayStr = getTodayDateString();
+    const nextClaimDay = DailyRewardManager.getNextClaimDay(
+      save.lastDailyLoginClaimDate,
+      save.dailyLoginStreak,
+      todayStr
+    );
 
     this.container.innerHTML = `
       <div class="modal-backdrop">
@@ -216,20 +227,32 @@ export class ModalManager {
           <!-- Detailed list -->
           <div style="background: #f8fafc; border-radius: 10px; padding: 12px; text-align: left; font-size: 13px; color: #475569; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
             <div style="display: flex; justify-content: space-between;">
+              <span>Games Played:</span>
+              <strong>${stats.gamesPlayed.toLocaleString()}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
               <span>Total Dishes Merged:</span>
               <strong>${stats.totalMerges.toLocaleString()}</strong>
             </div>
             <div style="display: flex; justify-content: space-between;">
-              <span>Highest Dish Reached:</span>
+              <span>Highest Dish Mastered:</span>
               <strong style="color: #ea580c;">${stats.highestDishReached} (Tier ${stats.highestDishTier})</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>Recipe Lore Collection:</span>
+              <strong style="color: #0284c7;">${foodUnlocked} / 11 Recipes (${Math.round((foodUnlocked / 11) * 100)}%)</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>Achievements Mastered:</span>
+              <strong style="color: #ca8a04;">${achUnlocked} / ${ACHIEVEMENTS.length} (${Math.round((achUnlocked / ACHIEVEMENTS.length) * 100)}%)</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span>Daily Gift Progress:</span>
+              <strong style="color: #16a34a;">Day ${nextClaimDay} of 7 (${save.dailyLoginStreak} streak)</strong>
             </div>
             <div style="display: flex; justify-content: space-between;">
               <span>Sambar Boosts Poured:</span>
               <strong>${stats.sambarBoostsUsed}</strong>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-              <span>Unlocked Themes:</span>
-              <strong>${save.unlockedThemes.length} / 2</strong>
             </div>
           </div>
 
@@ -635,5 +658,309 @@ export class ModalManager {
 
     document.getElementById('modal-close-x')?.addEventListener('click', () => this.close());
     document.getElementById('close-help-btn')?.addEventListener('click', () => this.close());
+  }
+
+  /**
+   * 7-Day Login Reward Calendar Modal
+   */
+  public static showDailyRewardModal(onClaimed: (coins: number, boosts: number) => void): void {
+    const save = StorageService.load();
+    const todayStr = getTodayDateString();
+    const isClaimable = DailyRewardManager.isRewardClaimable(save.lastDailyLoginClaimDate, todayStr);
+    const targetDay = DailyRewardManager.getNextClaimDay(
+      save.lastDailyLoginClaimDate,
+      save.dailyLoginStreak,
+      todayStr
+    );
+
+    const cardsHtml = SEVEN_DAY_REWARDS.map(tier => {
+      const isPast = !isClaimable && tier.day <= targetDay;
+      const isCurrent = isClaimable && tier.day === targetDay;
+      const isClaimedPast = isClaimable && tier.day < targetDay;
+
+      let borderStyle = '1px solid #e2e8f0';
+      let bgStyle = '#ffffff';
+      let badgeHtml = `<span style="font-size: 11px; color: #64748b; font-weight: bold;">Locked</span>`;
+
+      if (isCurrent) {
+        borderStyle = '2.5px solid #ea580c';
+        bgStyle = '#fff7ed';
+        badgeHtml = `<span style="font-size: 11px; color: #ea580c; font-weight: 800;">READY!</span>`;
+      } else if (isPast || isClaimedPast) {
+        borderStyle = '1.5px solid #16a34a';
+        bgStyle = '#f0fdf4';
+        badgeHtml = `<span style="font-size: 11px; color: #16a34a; font-weight: 800;">✓ Claimed</span>`;
+      }
+
+      return `
+        <div style="background: ${bgStyle}; border: ${borderStyle}; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">
+          <span style="font-size: 11px; font-weight: bold; color: #475569; margin-bottom: 4px;">${tier.label}</span>
+          <div style="font-size: 26px; margin: 4px 0;">${tier.icon}</div>
+          <div style="font-size: 12px; font-weight: 800; color: #1e293b;">+${tier.coins} 🪙</div>
+          ${tier.boosts > 0 ? `<div style="font-size: 11px; font-weight: bold; color: #ea580c;">+${tier.boosts} 🍲</div>` : ''}
+          <div style="margin-top: 6px;">${badgeHtml}</div>
+        </div>
+      `;
+    }).join('');
+
+    const targetTier = SEVEN_DAY_REWARDS.find(r => r.day === targetDay) || SEVEN_DAY_REWARDS[0];
+
+    this.container.innerHTML = `
+      <div class="modal-backdrop">
+        <div class="modal-content" style="text-align: center; max-width: 440px;">
+          <div class="modal-header">
+            <h2 class="modal-title">🎁 7-Day Kitchen Rewards</h2>
+            <button class="close-btn" id="modal-close-x">✕</button>
+          </div>
+          <p style="font-size: 13px; color: #64748b; margin: -6px 0 14px 0;">
+            Log in daily to claim escalating gifts, free coins and Sambar Boosts!
+          </p>
+
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;">
+            ${cardsHtml}
+          </div>
+
+          <div style="background: #f8fafc; border-radius: 10px; padding: 12px; margin-bottom: 16px; text-align: left;">
+            <div style="font-size: 12px; font-weight: bold; color: #ea580c;">TODAY'S GIFT: ${targetTier.title}</div>
+            <div style="font-size: 13px; color: #334155; margin-top: 2px;">${targetTier.description}</div>
+          </div>
+
+          ${isClaimable ? `
+            <button id="claim-reward-btn" class="btn-primary" style="font-size: 15px; padding: 12px; width: 100%;">
+              Claim Day ${targetDay} Reward (+${targetTier.coins} 🪙 ${targetTier.boosts > 0 ? `+${targetTier.boosts} 🍲` : ''}) 🎁
+            </button>
+          ` : `
+            <button class="btn-secondary" disabled style="opacity: 0.7; cursor: default; width: 100%;">
+              ✓ Today's Reward Claimed! Next gift unlocks tomorrow 🕒
+            </button>
+          `}
+        </div>
+      </div>
+    `;
+
+    document.getElementById('modal-close-x')?.addEventListener('click', () => this.close());
+
+    document.getElementById('claim-reward-btn')?.addEventListener('click', () => {
+      AudioService.playOrderComplete();
+      confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+      StorageService.claimDailyReward(todayStr, (save.dailyLoginStreak || 0) + 1, targetTier.coins);
+      this.close();
+      onClaimed(targetTier.coins, targetTier.boosts);
+    });
+  }
+
+  /**
+   * Achievements Modal
+   */
+  public static showAchievementsModal(): void {
+    const save = StorageService.load();
+    const unlockedIds = new Set(save.unlockedAchievements || []);
+    const unlockedCount = unlockedIds.size;
+    const totalCount = ACHIEVEMENTS.length;
+    const progressPct = Math.round((unlockedCount / totalCount) * 100);
+
+    const itemsHtml = ACHIEVEMENTS.map(ach => {
+      const isUnlocked = unlockedIds.has(ach.id);
+      return `
+        <div style="background: ${isUnlocked ? '#fffbeb' : '#f8fafc'}; border: 1.5px solid ${isUnlocked ? '#f59e0b' : '#e2e8f0'}; border-radius: 12px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="font-size: 28px; width: 36px; text-align: center; filter: ${isUnlocked ? 'none' : 'grayscale(1) opacity(0.6)'};">
+              ${ach.icon}
+            </div>
+            <div style="text-align: left;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 14px; font-weight: 800; color: #1e293b;">${ach.title}</span>
+                <span style="font-size: 11px; color: #64748b;">(${ach.tamilTitle})</span>
+              </div>
+              <div style="font-size: 12px; color: #475569; margin-top: 2px;">${ach.description}</div>
+            </div>
+          </div>
+          <div style="text-align: right; min-width: 70px;">
+            <span style="display: inline-block; background: ${isUnlocked ? '#fef3c7' : '#f1f5f9'}; color: ${isUnlocked ? '#b45309' : '#64748b'}; font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 6px; margin-bottom: 4px;">
+              +${ach.rewardCoins} 🪙
+            </span>
+            <div style="font-size: 11px; font-weight: bold; color: ${isUnlocked ? '#16a34a' : '#94a3b8'};">
+              ${isUnlocked ? '✓ Unlocked' : '🔒 Locked'}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    this.container.innerHTML = `
+      <div class="modal-backdrop">
+        <div class="modal-content" style="max-width: 440px;">
+          <div class="modal-header">
+            <h2 class="modal-title">🏆 Kitchen Achievements</h2>
+            <button class="close-btn" id="modal-close-x">✕</button>
+          </div>
+
+          <!-- Progress summary -->
+          <div style="background: #fff7ed; border: 1.5px solid #fdba74; border-radius: 10px; padding: 12px; margin-bottom: 14px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #ea580c; margin-bottom: 6px;">
+              <span>ACHIEVEMENT PROGRESS</span>
+              <span>${unlockedCount} / ${totalCount} (${progressPct}%)</span>
+            </div>
+            <div style="background: #fed7aa; border-radius: 6px; height: 8px; overflow: hidden;">
+              <div style="background: #ea580c; height: 100%; width: ${progressPct}%; transition: width 0.3s;"></div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; padding-right: 4px;">
+            ${itemsHtml}
+          </div>
+
+          <button id="close-ach-btn" class="btn-primary" style="margin-top: 14px;">Back to Game</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('modal-close-x')?.addEventListener('click', () => this.close());
+    document.getElementById('close-ach-btn')?.addEventListener('click', () => this.close());
+  }
+
+  /**
+   * South Indian Recipe Codex / Collection Book Modal
+   */
+  public static showCollectionModal(initialThemeId = 'classic-food'): void {
+    let currentThemeId = initialThemeId;
+    const save = StorageService.load();
+
+    const renderBook = () => {
+      const theme = getTheme(currentThemeId);
+      const unlockedTiers = save.unlockedDishTiers[currentThemeId] || [1];
+      const unlockedCount = unlockedTiers.length;
+      const totalTiers = theme.totalTiers;
+      const pct = Math.round((unlockedCount / totalTiers) * 100);
+
+      const cardsHtml = theme.tiers.map(t => {
+        const isUnlocked = unlockedTiers.includes(t.tier);
+        if (isUnlocked) {
+          return `
+            <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); position: relative; overflow: hidden;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 28px;">${t.symbol}</span>
+                <span style="font-size: 11px; font-weight: 800; background: #fff7ed; color: #ea580c; padding: 2px 8px; border-radius: 12px;">Tier ${t.tier} (${t.value} pts)</span>
+              </div>
+              <div>
+                <div style="font-size: 14px; font-weight: 800; color: #1e293b;">${t.name}</div>
+                <div style="font-size: 12px; font-weight: 600; color: #ea580c;">${t.tamilName || ''}</div>
+              </div>
+              <div style="background: #f8fafc; border-left: 3px solid #ea580c; padding: 6px 8px; border-radius: 4px; font-size: 11.5px; color: #475569; line-height: 1.4; margin-top: 4px;">
+                💡 <em>${t.funFact || 'A delightful dish in the culinary journey!'}</em>
+              </div>
+            </div>
+          `;
+        } else {
+          return `
+            <div style="background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 100px; opacity: 0.75;">
+              <span style="font-size: 24px; filter: grayscale(1); margin-bottom: 4px;">🔒</span>
+              <div style="font-size: 12px; font-weight: 800; color: #64748b;">Tier ${t.tier} Mystery Recipe</div>
+              <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Merge to Tier ${t.tier} to discover recipe lore!</div>
+            </div>
+          `;
+        }
+      }).join('');
+
+      this.container.innerHTML = `
+        <div class="modal-backdrop">
+          <div class="modal-content" style="max-width: 440px;">
+            <div class="modal-header">
+              <h2 class="modal-title">📖 Recipe Lore Book</h2>
+              <button class="close-btn" id="modal-close-x">✕</button>
+            </div>
+            <div style="font-size: 12px; color: #64748b; margin: -6px 0 12px 0;">
+              சுவைக் களஞ்சியம் • Authentic kitchen secrets and cultural stories!
+            </div>
+
+            <!-- Theme switcher tabs -->
+            <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+              <button id="tab-food-btn" style="flex: 1; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: bold; border: none; cursor: pointer; background: ${currentThemeId === 'classic-food' ? '#ea580c' : '#f1f5f9'}; color: ${currentThemeId === 'classic-food' ? '#ffffff' : '#475569'};">
+                🍲 Dishes (11)
+              </button>
+              <button id="tab-tamil-btn" style="flex: 1; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: bold; border: none; cursor: pointer; background: ${currentThemeId === 'tamil-letters' ? '#ea580c' : '#f1f5f9'}; color: ${currentThemeId === 'tamil-letters' ? '#ffffff' : '#475569'};">
+                🔤 Tamil Vowels (12)
+              </button>
+            </div>
+
+            <!-- Progress tracker -->
+            <div style="background: #f1f5f9; border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: bold; color: #334155; margin-bottom: 12px;">
+              <span>Lore Discovered:</span>
+              <span style="color: #ea580c;">${unlockedCount} / ${totalTiers} (${pct}%)</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; max-height: 340px; overflow-y: auto; padding-right: 4px;">
+              ${cardsHtml}
+            </div>
+
+            <button id="close-book-btn" class="btn-primary" style="margin-top: 14px;">Back to Cooking</button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-close-x')?.addEventListener('click', () => this.close());
+      document.getElementById('close-book-btn')?.addEventListener('click', () => this.close());
+
+      document.getElementById('tab-food-btn')?.addEventListener('click', () => {
+        AudioService.playTap();
+        currentThemeId = 'classic-food';
+        renderBook();
+      });
+
+      document.getElementById('tab-tamil-btn')?.addEventListener('click', () => {
+        AudioService.playTap();
+        currentThemeId = 'tamil-letters';
+        renderBook();
+      });
+    };
+
+    renderBook();
+  }
+
+  /**
+   * Floating animated celebration toast for newly unlocked achievements
+   */
+  public static showAchievementToast(achievement: Achievement): void {
+    AudioService.playOrderComplete();
+    confetti({ particleCount: 40, spread: 60, origin: { y: 0.2 } });
+
+    const toast = document.createElement('div');
+    toast.style.position = 'fixed';
+    toast.style.top = '70px';
+    toast.style.left = '50%';
+    toast.style.transform = 'translateX(-50%)';
+    toast.style.background = 'linear-gradient(135deg, #1e293b, #0f172a)';
+    toast.style.border = '2px solid #f59e0b';
+    toast.style.color = '#ffffff';
+    toast.style.padding = '12px 18px';
+    toast.style.borderRadius = '14px';
+    toast.style.boxShadow = '0 10px 25px rgba(0,0,0,0.3)';
+    toast.style.zIndex = '10000';
+    toast.style.display = 'flex';
+    toast.style.alignItems = 'center';
+    toast.style.gap = '12px';
+    toast.style.animation = 'fadeIn 0.3s ease-out';
+
+    toast.innerHTML = `
+      <div style="font-size: 28px;">${achievement.icon}</div>
+      <div>
+        <div style="font-size: 11px; font-weight: 800; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.5px;">🏆 Achievement Unlocked!</div>
+        <div style="font-size: 14px; font-weight: 800; color: #ffffff;">${achievement.title}</div>
+        <div style="font-size: 11px; color: #cbd5e1;">+${achievement.rewardCoins} 🪙 Coins added to your wallet!</div>
+      </div>
+    `;
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(-10px)';
+      toast.style.transition = 'all 0.3s ease-out';
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+      }, 300);
+    }, 3500);
   }
 }
